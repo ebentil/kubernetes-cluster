@@ -23,7 +23,7 @@ spec:
         main:
           enabled: true
           hostnames:
-            - alertmanager.dentil.dev
+            - alertmanager.bentil.dev
           parentRefs:
             - name: envoy-internal
               namespace: network
@@ -33,7 +33,7 @@ spec:
           name: alertmanager
           global:
             resolveTimeout: 5m
-        externalUrl: https://alertmanager.dentil.dev
+        externalUrl: https://alertmanager.bentil.dev
         storage:
           volumeClaimTemplate:
             spec:
