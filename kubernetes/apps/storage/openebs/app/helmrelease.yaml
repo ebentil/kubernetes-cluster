@@ -1,0 +1,221 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: openebs
+  namespace: storage
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: openebs
+      version: 4.3.2
+      interval: 1h
+      sourceRef:
+        kind: HelmRepository
+        name: openebs
+        namespace: flux-system
+  values:
+    rawfile-localpv:
+      provisionerName: "rawfile.csi.openebs.io"
+      logLevel: INFO
+      logFormat: json
+      reservedCapacity: "10%"
+      capacityOverride: "500Gi"
+
+      global:
+        imageRegistry: quay.io
+        k8sImageRegistry: registry.k8s.io
+        imagePullPolicy: IfNotPresent
+        imagePullSecrets:
+          - openebs-registry-secret
+        analytics:
+          enabled: false
+
+      image:
+        registry: quay.io
+        repository: openebs/rawfile-localpv
+        tag: "4.3.2"
+        pullPolicy: IfNotPresent
+
+      controller:
+        image:
+          repository: openebs/rawfile-localpv
+          tag: "4.3.2"
+          pullPolicy: IfNotPresent
+        externalResizer:
+          image:
+            registry: quay.io
+            repository: sig-storage/csi-resizer
+            tag: v1.13.2
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        priorityClassName: system-cluster-critical
+        tolerations:
+          - key: "node-role.kubernetes.io/master"
+            operator: Equal
+            value: "true"
+            effect: NoSchedule
+        grpcWorkers: 10
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          fsGroup: 2000
+          allowPrivilegeEscalation: false
+        livenessProbe:
+          exec:
+            command: ["/bin/grpc_health_probe", "-addr=:9809"]
+          initialDelaySeconds: 10
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command: ["/bin/grpc_health_probe", "-addr=:9809"]
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        podDisruptionBudget:
+          enabled: true
+          minAvailable: 1
+
+      node:
+        image:
+          repository: openebs/rawfile-localpv
+          tag: "4.3.2"
+          pullPolicy: IfNotPresent
+        driverRegistrar:
+          image:
+            registry: quay.io
+            repository: sig-storage/csi-node-driver-registrar
+            tag: v2.13.0
+        externalProvisioner:
+          image:
+            registry: quay.io
+            repository: sig-storage/csi-provisioner
+            tag: v5.2.0
+        externalSnapshotter:
+          image:
+            registry: quay.io
+            repository: sig-storage/csi-snapshotter
+            tag: v8.2.1
+        snapshotController:
+          image:
+            registry: quay.io
+            repository: sig-storage/snapshot-controller
+            tag: v8.2.1
+        dataDirPath: /var/csi/rawfile
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        metrics:
+          enabled: true
+        priorityClassName: system-node-critical
+        tolerations:
+          - key: "node-role.kubernetes.io/master"
+            operator: Equal
+            value: "true"
+            effect: NoSchedule
+        grpcWorkers: 10
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          fsGroup: 2000
+          allowPrivilegeEscalation: false
+        livenessProbe:
+          exec:
+            command: ["/bin/grpc_health_probe", "-addr=:9808"]
+          initialDelaySeconds: 10
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command: ["/bin/grpc_health_probe", "-addr=:9808"]
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        podDisruptionBudget:
+          enabled: true
+          minAvailable: 1
+
+      imagePullSecrets:
+        - openebs-registry-secret
+
+      metrics:
+        enabled: true
+        port: 9100
+        serviceMonitor:
+          enabled: true
+          interval: 1m
+
+      storageClasses:
+        - name: openebs-hostpath
+          enabled: true
+          volumeBindingMode: WaitForFirstConsumer
+          allowVolumeExpansion: true
+          reclaimPolicy: Delete
+          fsType: ext4
+          thinProvision: false
+          mountOptions: []
+          formatOptions: []
+          isDefaultClass: true
+
+      crds:
+        enabled: true
+        csi:
+          volumeSnapshots:
+            enabled: true
+
+    # Disable unused engines
+    zfs-localpv:
+      enabled: false
+      analytics:
+        enabled: false
+
+    lvm-localpv:
+      enabled: false
+
+    mayastor:
+      enabled: false
+
+    # Disable observability components not in use
+    loki:
+      enabled: false
+
+    alloy:
+      enabled: false
+
+    engines:
+      local:
+        lvm:
+          enabled: false
+        zfs:
+          enabled: false
+      replicated:
+        mayastor:
+          enabled: false
+
+    global:
+      imageRegistry: "quay.io/"
+      cleanup:
+        image:
+          registry: quay.io/
+      talos:
+        enabled: true
+        hostNetwork: true
+        analytics:
+          enabled: false
+
+# Note: For full security, also create and apply a Kubernetes NetworkPolicy to restrict OpenEBS pod traffic.
