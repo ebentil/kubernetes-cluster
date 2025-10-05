@@ -5,25 +5,26 @@ kind: HelmRelease
 metadata:
   name: kube-prometheus-stack
 spec:
-  interval: 1h
   chartRef:
     kind: OCIRepository
     name: kube-prometheus-stack
-  install:
-    remediation:
-      retries: -1
-  upgrade:
-    cleanupOnFail: true
-    remediation:
-      retries: 3
+  interval: 1h
   values:
     cleanPrometheusOperatorObjectNames: true
     alertmanager:
       route:
         main:
           enabled: true
+          annotations:
+            gatus.home-operations.com/enabled: "true"
+            gatus.home-operations.com/endpoint: |-
+              conditions: ["len([BODY]) == 0"]
+              dns:
+                query-name: {{ .Release.Name }}.
+                query-type: A
+              url: 1.1.1.1
           hostnames:
-            - alertmanager.bentil.dev
+            - alertmanager.turbo.ac
           parentRefs:
             - name: envoy-internal
               namespace: network
@@ -37,7 +38,7 @@ spec:
         storage:
           volumeClaimTemplate:
             spec:
-              storageClassName: openebs-hostpath
+              storageClassName: ceph-block
               resources:
                 requests:
                   storage: 1Gi
@@ -51,18 +52,27 @@ spec:
       route:
         main:
           enabled: true
+          annotations:
+            gatus.home-operations.com/enabled: "true"
+            gatus.home-operations.com/endpoint: |-
+              conditions: ["len([BODY]) == 0"]
+              dns:
+                query-name: {{ .Release.Name }}.
+                query-type: A
+              url: 1.1.1.1
           hostnames:
-            - prometheus.bentil.dev
+            - prometheus.turbo.ac
           parentRefs:
-            - name: envoy-internal
+            - name: external
               namespace: network
               sectionName: https
       prometheusSpec:
         externalUrl: https://prometheus.bentil.dev
+        version: v2.55.1 # override 'unsupported Prometheus version' error
         image:
           registry: docker.io
           repository: prompp/prompp
-          tag: 2.53.2-0.4.0
+          tag: 0.5.1
         securityContext:
           runAsNonRoot: true
           runAsUser: 64535
